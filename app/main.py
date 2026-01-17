@@ -1,21 +1,29 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import fitz  # PyMuPDF
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import fitz 
+import os
 from app.schemas import EmailRequest, EmailResponse
 from app.nlp.preprocess import preprocess_text
 from app.nlp.classifier import classify_email
 from app.nlp.responder import generate_response
 
-app = FastAPI(title="Email Classification API")
+app = FastAPI(title="Email Classification API", docs_url="/api/docs")
 
-                        #Conexao entre back e front 
+#Config. do CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servir arquivos estáticos do frontend
+FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if os.path.exists(FRONTEND_PATH):
+    app.mount("/static", StaticFiles(directory=FRONTEND_PATH), name="static")
 
 def process_logic(text: str):
     classificacao = classify_email(text) 
@@ -27,6 +35,12 @@ def process_logic(text: str):
         "confianca": classificacao["confianca"],
         "resposta_sugerida": resposta
     }
+
+@app.get("/")
+async def serve_frontend():
+    if os.path.exists(os.path.join(FRONTEND_PATH, "index.html")):
+        return FileResponse(os.path.join(FRONTEND_PATH, "index.html"))
+    return {"message": "Backend está rodando, frontend não encontrado"}
 
 @app.post("/analyze-email", response_model=EmailResponse)
 def analyze_email(request: EmailRequest):
@@ -40,7 +54,7 @@ async def analyze_file(file: UploadFile = File(...)):
     print(f"Arquivo recebido: {file.filename}")
     print(f"Tamanho lido: {len(file_bytes)} bytes")
 
-    try:                            #Extração de textos dos uploads
+    try:
         if file.filename.endswith(".txt"):
             content = file_bytes.decode("utf-8")
         
@@ -57,8 +71,6 @@ async def analyze_file(file: UploadFile = File(...)):
         else:
             raise HTTPException(status_code=400, detail="Formato não suportado. Use .txt ou .pdf")
         
-                #Tratamento de erro
-
     except Exception as e:
         print(f"ERRO NA LEITURA: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo: {str(e)}")
@@ -73,3 +85,8 @@ async def analyze_file(file: UploadFile = File(...)):
     print("--------------------\n")
     
     return process_logic(content)
+
+#Render
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": "Desafio Autou NLP API"}

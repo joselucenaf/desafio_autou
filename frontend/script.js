@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultArea = document.getElementById('resultArea');
     const emailInput = document.getElementById('emailInput');
 
+    const API_BASE_URL = window.location.origin;
+    const API_URL = API_BASE_URL; 
 
     const switchTab = (mode) => {
         if (mode === 'text') {
@@ -50,18 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeBtn.disabled = true;
 
         try {
-            let response;           /*Polimorfismo de requisicao */
-                                    /*Decisao do front para enviar o texto ou o upload */
+            let response;
+
             if (isFileMode) {
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
 
-                response = await fetch('http://127.0.0.1:8000/analyze-file', {
+                response = await fetch(`${API_URL}/analyze-file`, {
                     method: 'POST',
                     body: formData
                 });
             } else {
-                response = await fetch('http://127.0.0.1:8000/analyze-email', {
+                response = await fetch(`${API_URL}/analyze-email`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: text })
@@ -91,11 +93,24 @@ document.addEventListener('DOMContentLoaded', () => {
             resultArea.scrollIntoView({ behavior: 'smooth' });
 
         } catch (error) {
-            alert(`Erro: ${error.message}. Verifique se o backend está ativo.`);
+            alert(`Erro: ${error.message}`);
             console.error("Erro na integração:", error);
         } finally {
             analyzeBtn.innerText = "Analisar Conteúdo";
             analyzeBtn.disabled = false;
         }
     });
+
+    async function testBackendConnection() {
+        try {
+            const response = await fetch(`${API_URL}/health`);
+            if (response.ok) {
+                console.log("Backend conectado com sucesso!");
+            }
+        } catch (error) {
+            console.warn("Backend não está respondendo:", error);
+        }
+    }
+    
+    testBackendConnection();
 });
