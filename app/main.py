@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import fitz
+import fitz  # PyMuPDF
 from app.schemas import EmailRequest, EmailResponse
 from app.nlp.preprocess import preprocess_text
 from app.nlp.classifier import classify_email
@@ -17,8 +17,9 @@ app.add_middleware(
 )
 
 def process_logic(text: str):
-    email_limpo = preprocess_text(text)
-    classificacao = classify_email(email_limpo)
+    classificacao = classify_email(text) 
+    
+    # Geração de resposta baseada na categoria
     resposta = generate_response(text, classificacao["categoria"])
 
     return {
@@ -34,18 +35,39 @@ def analyze_email(request: EmailRequest):
 @app.post("/analyze-file", response_model=EmailResponse)
 async def analyze_file(file: UploadFile = File(...)):
     content = ""
-    
-    if file.filename.endswith(".txt"):
-        content = (await file.read()).decode("utf-8")
-    elif file.filename.endswith(".pdf"):
-        pdf_data = await file.read()
-        doc = fitz.open(stream=pdf_data, filetype="pdf")
-        for page in doc:
-            content += page.get_text()
-    else:
-        raise HTTPException(status_code=400, detail="Formato não suportado")
+    file_bytes = await file.read()
+    print(f"\n--- DEBUG UPLOAD ---")
+    print(f"Arquivo recebido: {file.filename}")
+    print(f"Tamanho lido: {len(file_bytes)} bytes")
+
+    try:
+        if file.filename.endswith(".txt"):
+            content = file_bytes.decode("utf-8")
+        
+        elif file.filename.endswith(".pdf"):
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            print(f"Número de páginas no PDF: {len(doc)}")
+            
+            for page_num, page in enumerate(doc):
+                text_extracted = page.get_text()
+                print(f"Página {page_num + 1}: {len(text_extracted)} caracteres extraídos.")
+                content += text_extracted
+            doc.close()
+        
+        else:
+            raise HTTPException(status_code=400, detail="Formato não suportado. Use .txt ou .pdf")
+
+    except Exception as e:
+        print(f"ERRO NA LEITURA: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo: {str(e)}")
 
     if not content.strip():
-        raise HTTPException(status_code=400, detail="Arquivo vazio")
+        print("RESULTADO: O conteúdo extraído está vazio.")
+        print("DICA: Se for um PDF, verifique se não é uma imagem/escaneado sem OCR.")
+        print("--------------------\n")
+        raise HTTPException(status_code=400, detail="Arquivo vazio ou sem texto legível")
 
+    print(f"SUCESSO: {len(content)} caracteres enviados para processamento.")
+    print("--------------------\n")
+    
     return process_logic(content)
