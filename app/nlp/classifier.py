@@ -5,12 +5,17 @@ classifier = pipeline(
     model="facebook/bart-large-mnli"
 )
 
-LABELS = ["Produtivo", "Improdutivo"]
+LABELS_MAP = {
+    "solicitação de cliente ou dúvida técnica": "Produtivo",
+    "mensagem irrelevante, agradecimento ou saudação": "Improdutivo"
+}
 
 def classify_email(text: str) -> dict:
-    result = classifier(text, LABELS)
+    result = classifier(text, list(LABELS_MAP.keys()))
+    best_label = result["labels"][0]
+    categoria_final = LABELS_MAP[best_label]
 
     return {
-        "categoria": result["labels"][0],
+        "categoria": categoria_final,
         "confianca": round(result["scores"][0], 2)
     }
