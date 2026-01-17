@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoU - Classificador de E-mails</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AutoU <span>AI</span></h1>
+            <p>Classificação inteligente e automação de respostas financeiras.</p>
+        </header>
+
+        <main>
+            <section class="input-area">
+                <textarea id="emailInput" placeholder="Cole o conteúdo do e-mail aqui..."></textarea>
+                
+                <div class="divider">ou</div>
+
+                <div class="file-upload">
+                    <label for="fileInput">Envie um arquivo (.txt ou .pdf):</label>
+                    <input type="file" id="fileInput" accept=".txt,.pdf">
+                </div>
+
+                <div class="actions">
+                    <button id="analyzeBtn" onclick="handleAnalysis()">Analisar Conteúdo</button>
+                </div>
+            </section>
+
+            <section id="resultArea" class="result-area hidden">
+                <div class="card">
+                    <h3>Resultado da Análise</h3>
+                    <div class="badge" id="categoryBadge">Categoria</div>
+                    <p><strong>Confiança:</strong> <span id="confidenceValue">0</span>%</p>
+                    
+                    <hr>
+                    
+                    <h4>Sugestão de Resposta:</h4>
+                    <div class="response-box" id="suggestedResponse"></div>
+                    <button class="copy-btn" onclick="copyResponse()">Copiar Resposta</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        async function handleAnalysis() {
+            const text = document.getElementById('emailInput').value;
+            const fileInput = document.getElementById('fileInput');
+            const btn = document.getElementById('analyzeBtn');
+
+            if (!text && fileInput.files.length === 0) {
+                return alert("Por favor, insira um texto ou selecione um arquivo.");
+            }
+
+            btn.innerText = "Processando...";
+            btn.disabled = true;
+
+            try {
+                let response;
+                if (fileInput.files.length > 0) {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+
+                    response = await fetch('http://127.0.0.1:8000/analyze-file', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    response = await fetch('http://127.0.0.1:8000/analyze-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: text })
+                    });
+                }
+
+                if (!response.ok) throw new Error("Falha no processamento");
+
+                const data = await response.json();
+
+                document.getElementById('resultArea').classList.remove('hidden');
+                document.getElementById('categoryBadge').innerText = data.categoria;
+                document.getElementById('categoryBadge').className = 'badge ' + data.categoria.toLowerCase();
+                document.getElementById('confidenceValue').innerText = (data.confianca * 100).toFixed(0);
+                document.getElementById('suggestedResponse').innerText = data.resposta_sugerida;
+
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao processar. Verifique se o backend está rodando e se o arquivo é válido.");
+            } finally {
+                btn.innerText = "Analisar Conteúdo";
+                btn.disabled = false;
+            }
+        }
+
+        function copyResponse() {
+            const text = document.getElementById('suggestedResponse').innerText;
+            navigator.clipboard.writeText(text);
+            alert("Resposta copiada para a área de transferência!");
+        }
+    </script>
+</body>
+</html>
